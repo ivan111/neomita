@@ -6,7 +6,7 @@ function Read-IIMitaDate {
     )
 
     process {
-        $DateStr = Read-Host $Prompt
+        $DateStr = Read-Host -Prompt $Prompt
         $DateStr = $DateStr.Trim()
 
         $cur = Get-Date
@@ -199,20 +199,23 @@ function New-IIMitaTransaction {
 }
 
 function Get-IIMitaTransactions {
+    [CmdletBinding()]
     param (
+        [Parameter(ValueFromPipeline)]
         [string]$Month,
         [switch]$All,
         [switch]$NeedGroup,
         [switch]$BelongToGroup
     )
 
-    $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
+    begin {
+        $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
 
-    try {
         $con.Open()
-
         $command = $con.CreateCommand()
+    }
 
+    process {
         if ($All) {
             $date = Get-Date -Format "yyyy-MM-dd"
             $where = "date <= '$date'"
@@ -226,7 +229,13 @@ function Get-IIMitaTransactions {
         } elseif ($BelongToGroup) {
             $where = "group_name IS NOT NULL OR group_name <> ''"
         } else {
-            $where = "substr(date,1,7) = '$Month'"
+            $date = Convert-IIMitaMonth -Month $Month.Trim()
+
+            if ($date -eq $null -or $date -eq "") {
+                return
+            }
+
+            $where = "substr(date,1,7) = '$date'"
         }
 
         $command.CommandText = @"
@@ -255,51 +264,8 @@ ORDER BY date, id
 
             Write-Output $obj
         }
-    } finally {
-        $con.Close()
-    }
-}
 
-function Out-IIMitaTransactions {
-    [CmdletBinding()]
-    param (
-        [Parameter()]
-        [string]$Month
-    )
-
-    $date = Convert-IIMitaMonth -Month $Month.Trim()
-
-    if ($date -eq $null -or $date -eq "") {
-        return
-    }
-
-    Get-IIMitaTransactions -Month $date | Format-Table -Property id, date, debit, credit, amount, note, group
-}
-
-function Out-IIMitaNeedGroup {
-    Get-IIMitaTransactions -NeedGroup | Format-Table -Property id, date, debit, credit, amount, note, group
-}
-
-function Set-IIMitaGroupName {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,ValueFromPipeline)]
-        $Transaction,
-        [string]$GroupName
-    )
-
-    begin {
-        $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
-        $con.Open()
-    }
-
-    process {
-        $command = $con.CreateCommand()
-
-        $sql = "UPDATE transactions SET group_name = '$GroupName' WHERE id = $($_.id)"
-
-        $command.CommandText = $sql
-        $command.ExecuteNonQuery()
+        $command.Dispose()
     }
 
     end {
@@ -307,19 +273,117 @@ function Set-IIMitaGroupName {
     }
 }
 
-function Set-IIMitaNeedGroup {
+function Remove-IIMitaTransaction {
     [CmdletBinding()]
     param (
-        [Parameter(mandatory)]
-        [string]$GroupName
+        [Parameter(Mandatory, ValueFromPipeline)]
+        $Transaction
     )
 
-    if ($GroupName -notmatch "^(\d{4})-(\d\d)_.+$") {
-        Write-Error -Message ("グループ目は'yyyy-MM_'で始まらないといけません。")
-        return
+    begin {
+        $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
+        $con.Open()
+        $command = $con.CreateCommand()
     }
 
-    Get-IIMitaTransactions -NeedGroup | Out-GridView -PassThru | Set-IIMitaGroupName -GroupName $GroupName
+    process {
+        if ($_.id -eq $null -or $_.id -notmatch "^\d+$") {
+            return
+        }
+
+
+        $command.CommandText = "DELETE FROM transactions WHERE id = $($_.id)"
+        $command.ExecuteNonQuery() | Out-Null
+    }
+
+    end {
+        $con.Close()
+    }
+}
+
+function Edit-IIMitaTransaction {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory, ValueFromPipeline)]
+        $Transaction
+    )
+
+    begin {
+        $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
+        $con.Open()
+        $command = $con.CreateCommand()
+
+        $cmd_arr = "d", "l", "r", "a", "n", "g"
+
+        do {
+            $cmd = Read-Host -Prompt "(d)ate, (l)eft, (r)ight, (a)mount, (n)ote, (g)roup"
+            $cmd = $cmd.Trim()
+        } while (-not $cmd_arr.Contains($cmd))
+
+        switch ($cmd) {
+            "q" {
+                return
+            }
+
+            "d" {
+                do {
+                    $date = Read-IIMitaDate -Prompt "日付"
+                } while ($date -eq $null)
+
+                $set = "date = '$date'"
+            }
+
+            "l" {
+                do {
+                    $debit_id = Select-IIMitaAccount
+                } while ($debit_id -eq $null)
+
+                $set = "debit_id = '$debit_id'"
+            }
+
+            "r" {
+                do {
+                    $credit_id = Select-IIMitaAccount
+                } while ($credit_id -eq $null)
+
+                $set = "credit_id = '$credit_id'"
+            }
+
+            "a" {
+                do {
+                    $amount_str = Read-Host -Prompt "金額"
+                    $amount_str = $amount_str.Trim()
+                } while ($amount_str -notmatch "^\d+$")
+
+                $set = "amount = $amount_str"
+            }
+
+            "n" {
+                $note = Read-Host -Prompt "摘要"
+
+                $set = "note = '$note'"
+            }
+
+            "g" {
+                $group = Read-Host -Prompt "グループ名"
+
+                $set = "group_name = '$group'"
+            }
+        }
+    }
+
+    process {
+        if ($_.id -eq $null -or $_.id -notmatch "^\d+$") {
+            return
+        }
+
+        $command.CommandText = "UPDATE transactions SET $set WHERE id = $($_.id)"
+        $command.ExecuteNonQuery() | Out-Null
+    }
+
+    end {
+        $con.Close()
+    }
 }
 
 function Out-IIMitaUnbalancedGroup {
