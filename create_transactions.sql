@@ -4,5 +4,6 @@ CREATE TABLE transactions (
     debit_id INTEGER,
     credit_id INTEGER,
     amount INTEGER,
-    note TEXT
+    note TEXT,
+    group_name TEXT
 );

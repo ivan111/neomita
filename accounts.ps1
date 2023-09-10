@@ -2,6 +2,7 @@ function Set-IIMitaAccountParent {
     param (
         $Account,
         $AccountTable,
+        $NeedGroup,
         $Parent = $null,
         $Depth = 0
     )
@@ -15,6 +16,10 @@ function Set-IIMitaAccountParent {
         $Account | Add-Member -MemberType NoteProperty -Name "type" -Value $Parent.type
     }
 
+    if ($Account.need_group -ne $null) {
+        $NeedGroup.Add($Account)
+    }
+
     [string]$id = $Account.id
 
     if ($AccountTable.ContainsKey($id)) {
@@ -24,7 +29,7 @@ function Set-IIMitaAccountParent {
     $AccountTable[$id] = $Account
 
     $Account.children.foreach({
-        Set-IIMitaAccountParent -Account $_ -AccountTable $AccountTable -Parent $Account -Depth ($Depth+1)
+        Set-IIMitaAccountParent -Account $_ -AccountTable $AccountTable -NeedGroup $NeedGroup -Parent $Account -Depth ($Depth+1)
     })
 }
 
@@ -45,13 +50,15 @@ function Reset-IIMitaAccountAmount {
 
 function Import-IIMitaAccounts {
     $table = @{}
+    $need_group = [System.Collections.ArrayList]::new()
 
     $root = Get-Content -Path $global:IIMitaAccountsFile -Raw | ConvertFrom-Json
-    Set-IIMitaAccountParent -Account $root -AccountTable $table
+    Set-IIMitaAccountParent -Account $root -AccountTable $table -NeedGroup $need_group
 
     $global:IIMitaAccount = @{
-        "root" = $root
-        "table" = $table
+        root = $root
+        table = $table
+        need_group = $need_group
     }
 }
 

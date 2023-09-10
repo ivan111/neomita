@@ -201,7 +201,9 @@ function New-IIMitaTransaction {
 function Get-IIMitaTransactions {
     param (
         [string]$Month,
-        [switch]$All
+        [switch]$All,
+        [switch]$NeedGroup,
+        [switch]$BelongToGroup
     )
 
     $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
@@ -214,12 +216,21 @@ function Get-IIMitaTransactions {
         if ($All) {
             $date = Get-Date -Format "yyyy-MM-dd"
             $where = "date <= '$date'"
+        } elseif ($NeedGroup) {
+            $date = Get-Date -Format "yyyy-MM-dd"
+
+            $need_group = ($global:IIMitaAccount.need_group.foreach({ $_.id }) -join ",")
+
+            $where = "date <= '$date' AND (debit_id IN ($need_group) OR " +
+                     "credit_id IN ($need_group)) AND (group_name IS NULL OR group_name = '')"
+        } elseif ($BelongToGroup) {
+            $where = "group_name IS NOT NULL OR group_name <> ''"
         } else {
             $where = "substr(date,1,7) = '$Month'"
         }
 
         $command.CommandText = @"
-SELECT id, date, debit_id, credit_id, amount, note FROM transactions
+SELECT id, date, debit_id, credit_id, amount, note, group_name FROM transactions
 WHERE $where
 ORDER BY date, id
 "@
@@ -239,6 +250,7 @@ ORDER BY date, id
                 credit = $credit
                 amount = [int]$reader["amount"]
                 note = $reader["note"].ToString()
+                group = $reader["group_name"].ToString()
             }
 
             Write-Output $obj
@@ -261,5 +273,74 @@ function Out-IIMitaTransactions {
         return
     }
 
-    Get-IIMitaTransactions -Month $date | Format-Table -Property date, debit, credit, amount, note
+    Get-IIMitaTransactions -Month $date | Format-Table -Property id, date, debit, credit, amount, note, group
+}
+
+function Out-IIMitaNeedGroup {
+    Get-IIMitaTransactions -NeedGroup | Format-Table -Property id, date, debit, credit, amount, note, group
+}
+
+function Set-IIMitaGroupName {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,ValueFromPipeline)]
+        $Transaction,
+        [string]$GroupName
+    )
+
+    begin {
+        $con = [System.Data.SQLite.SQLiteConnection]::new($global:IIMitaDBCon)
+        $con.Open()
+    }
+
+    process {
+        $command = $con.CreateCommand()
+
+        $sql = "UPDATE transactions SET group_name = '$GroupName' WHERE id = $($_.id)"
+
+        $command.CommandText = $sql
+        $command.ExecuteNonQuery()
+    }
+
+    end {
+        $con.Close()
+    }
+}
+
+function Set-IIMitaNeedGroup {
+    [CmdletBinding()]
+    param (
+        [Parameter(mandatory)]
+        [string]$GroupName
+    )
+
+    if ($GroupName -notmatch "^(\d{4})-(\d\d)_.+$") {
+        Write-Error -Message ("グループ目は'yyyy-MM_'で始まらないといけません。")
+        return
+    }
+
+    Get-IIMitaTransactions -NeedGroup | Out-GridView -PassThru | Set-IIMitaGroupName -GroupName $GroupName
+}
+
+function Out-IIMitaUnbalancedGroup {
+    $groups = @{}
+
+    Get-IIMitaTransactions -BelongToGroup | ForEach-Object {
+        if (-not $groups.ContainsKey($_.group)) {
+            $groups[$_.group] = 0
+        }
+
+        $debit = $global:IIMitaAccount.table[$_.debit_id]
+        $credit = $global:IIMitaAccount.table[$_.credit_id]
+
+        if ($debit.need_group -ne $null) {
+            $groups[$_.group] += $_.amount
+        }
+
+        if ($credit.need_group -ne $null) {
+            $groups[$_.group] -= $_.amount
+        }
+    }
+
+    $groups.GetEnumerator() | Where-Object { $_.value -ne 0 }
 }
