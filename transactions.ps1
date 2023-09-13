@@ -1,3 +1,15 @@
+# 取引に関連する関数。
+# 取引の新規作成、編集、削除をする関数などがある。
+
+
+<#
+    .synopsis
+    ユーザから入力を受け取り、それをyyyy-MM-dd形式の日付文字列に変換する。
+    .parameter Prompt
+    プロンプト文字列
+    .outputs
+    yyyy-MM-dd形式の文字列
+#>
 function Read-IIMitaDate {
     [CmdletBinding()]
     param (
@@ -54,13 +66,19 @@ function Read-IIMitaDate {
     }
 }
 
-# 月を表す文字列からyyyy-MM形式の文字列に変換する。
-# 引数 $Month => 結果
-#     空白 => 現在の月
-#     数字 => 現在の年の引数の月
-#     -数字 =>引数分前の月
-#     yyyy-MM => そのまま
-#     その他 => $null
+
+<#
+    .synopsis
+    月を表す文字列からyyyy-MM形式の文字列に変換する。
+    .parameter Month
+    空白 => 現在の月
+    数字 => 現在の年のMonth月
+    -数字 => Month前の月
+    yyyy-MM => そのまま
+    その他 => $null
+    .outputs
+    yyyy-MM形式の文字列
+#>
 function Convert-IIMitaMonth {
     [CmdletBinding()]
     param (
@@ -103,6 +121,13 @@ function Convert-IIMitaMonth {
     return
 }
 
+
+<#
+    .synopsis
+    ユーザから取引情報を入力してもらう。
+    .outputs
+    入力された取引
+#>
 function Read-IIMitaTransaction {
     do {
         $date = Read-IIMitaDate -Prompt "日付"
@@ -136,6 +161,13 @@ function Read-IIMitaTransaction {
     }
 }
 
+
+<#
+    .synopsis
+    引数の取引を画面に表示する。
+    .parameter Transaction
+    表示したい取引
+#>
 function Write-IIMitaTransaction {
     [CmdletBinding()]
     param (
@@ -152,6 +184,13 @@ function Write-IIMitaTransaction {
     Write-Host $line
 }
 
+
+<#
+    .synopsis
+    引数の取引をデータベースへ保存する。
+    .parameter Transaction
+    保存したい取引
+#>
 function Save-IIMitaTransaction {
     [CmdletBinding()]
     param (
@@ -178,6 +217,11 @@ INSERT INTO transactions(date, debit_id, credit_id, amount, note) VALUES
     }
 }
 
+
+<#
+    .synopsis
+    ユーザから入力を受け取って、取引を新規作成し、データーベースへ保存する。
+#>
 function New-IIMitaTransaction {
     $tr = Read-IIMitaTransaction
     if ($tr -eq $null) {
@@ -198,6 +242,26 @@ function New-IIMitaTransaction {
     Save-IIMitaTransaction -Transaction $tr
 }
 
+
+<#
+    .synopsis
+    取引を取得する。
+    .inputs
+    取得したい月。省略可能。配列を渡すことで複数の月の取引を取得することができる。
+    .parameter Month
+    空白 => 現在の月
+    数字 => 現在の年のMonth月
+    -数字 => Month前の月
+    yyyy-MM => そのまま
+    .parameter All
+    現在より以前の取引をすべて取得するスイッチ
+    .parameter NeedGroup
+    need_groupな勘定科目が借方か貸方に含まれるすべての取引を取得するスイッチ
+    .parameter BelongToGroup
+    グループが設定されているすべての取引を取得するスイッチ
+    .outputs
+    取引の配列
+#>
 function Get-IIMitaTransactions {
     [CmdletBinding()]
     param (
@@ -273,6 +337,16 @@ ORDER BY date, id
     }
 }
 
+
+<#
+    .synopsis
+    パイプラインで渡された取引を削除する。
+    .inputs
+    削除する取引
+    .example
+    PS> # 今月の取引の中から、GritViewで１つ取引を選んで削除する。
+    PS> Get-IIMitaTransactions | Out-GridView -OutputMode Single | Remove-IIMitaTransaction
+#>
 function Remove-IIMitaTransaction {
     [CmdletBinding()]
     param (
@@ -301,6 +375,16 @@ function Remove-IIMitaTransaction {
     }
 }
 
+
+<#
+    .synopsis
+    パイプラインで渡された取引を編集する。
+    .inputs
+    編集する取引
+    .example
+    PS> # 今月の取引の中から、GritViewで１つ取引を選んで編集する。
+    PS> Get-IIMitaTransactions | Out-GridView -OutputMode Single | Edit-IIMitaTransaction
+#>
 function Edit-IIMitaTransaction {
     [CmdletBinding()]
     param (
@@ -386,6 +470,11 @@ function Edit-IIMitaTransaction {
     }
 }
 
+
+<#
+    .synopsis
+    グループが設定された取引で、need_groupな勘定科目について借方と貸方の合計が釣り合っていないものを表示する。
+#>
 function Out-IIMitaUnbalancedGroup {
     $groups = @{}
 
