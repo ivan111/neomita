@@ -212,6 +212,11 @@ INSERT INTO transactions(date, debit_id, credit_id, amount, note) VALUES
 "@
 
         $command.ExecuteNonQuery() | Out-Null
+
+        $command = $con.CreateCommand()
+        $command.CommandText = "SELECT last_insert_rowid() as id FROM transactions"
+
+        return $command.ExecuteScalar()
     } finally {
         $con.Close()
     }
@@ -239,7 +244,7 @@ function New-IIMitaTransaction {
         return
     }
 
-    Save-IIMitaTransaction -Transaction $tr
+    return Save-IIMitaTransaction -Transaction $tr
 }
 
 
@@ -340,18 +345,24 @@ ORDER BY date, id
 
 <#
     .synopsis
-    パイプラインで渡された取引を削除する。
+    取引を削除する。
     .inputs
     削除する取引
+    .parameter Id
+    削除する取引ID
     .example
     PS> # 今月の取引の中から、GritViewで１つ取引を選んで削除する。
     PS> Get-IIMitaTransactions | Out-GridView -OutputMode Single | Remove-IIMitaTransaction
+    .example
+    PS> # 取引IDを直接指定して削除する。
+    PS> Remove-IIMitaTransaction -id 26
 #>
 function Remove-IIMitaTransaction {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory, ValueFromPipeline)]
-        $Transaction
+        [Parameter(ValueFromPipeline)]
+        $Transaction,
+        [int]$Id
     )
 
     begin {
@@ -361,12 +372,15 @@ function Remove-IIMitaTransaction {
     }
 
     process {
-        if ($_.id -eq $null -or $_.id -notmatch "^\d+$") {
+        if ($Id -ne 0) {
+            $delete_id = $Id
+        } elseif ($_.id -ne $null -and $_.id -match "^\d+$") {
+            $delete_id = $_.id
+        } else {
             return
         }
 
-
-        $command.CommandText = "DELETE FROM transactions WHERE id = $($_.id)"
+        $command.CommandText = "DELETE FROM transactions WHERE id = $delete_id"
         $command.ExecuteNonQuery() | Out-Null
     }
 
@@ -378,18 +392,30 @@ function Remove-IIMitaTransaction {
 
 <#
     .synopsis
-    パイプラインで渡された取引を編集する。
+    取引を編集する。
     .inputs
     編集する取引
+    .parameter Id
+    編集する取引ID
     .example
     PS> # 今月の取引の中から、GritViewで１つ取引を選んで編集する。
     PS> Get-IIMitaTransactions | Out-GridView -OutputMode Single | Edit-IIMitaTransaction
+    .example
+    PS> # 取引IDを指定して編集する。
+    PS> Edit-IIMitaTransaction -id 26 -date "2023-09-14" -note "タピオカ"
 #>
 function Edit-IIMitaTransaction {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory, ValueFromPipeline)]
-        $Transaction
+        [Parameter(ValueFromPipeline)]
+        $Transaction,
+        [int]$Id,
+        [string]$Date,
+        [string]$DebitId,
+        [string]$CreditId,
+        [int]$Amount,
+        $Note,
+        $Group
     )
 
     begin {
@@ -397,71 +423,105 @@ function Edit-IIMitaTransaction {
         $con.Open()
         $command = $con.CreateCommand()
 
-        $cmd_arr = "d", "l", "r", "a", "n", "g"
+        $sets = @()
 
-        do {
-            $cmd = Read-Host -Prompt "(d)ate, (l)eft, (r)ight, (a)mount, (n)ote, (g)roup"
-            $cmd = $cmd.Trim()
-        } while (-not $cmd_arr.Contains($cmd))
+        if ($Date -ne "" -and $Date -match "^(\d{4})-(\d\d?)-(\d\d?)$") {
+            $sets += "date = '$Date'"
+        }
 
-        switch ($cmd) {
-            "q" {
-                return
-            }
+        if ($DebitId -ne "" -and $global:IIMitaAccount.table.ContainsKey($DebitId)) {
+            $sets += "debit_id = '$DebitId'"
+        }
 
-            "d" {
-                do {
-                    $date = Read-IIMitaDate -Prompt "日付"
-                } while ($date -eq $null)
+        if ($CreditId -ne "" -and $global:IIMitaAccount.table.ContainsKey($CreditId)) {
+            $sets += "credit_id = '$CreditId'"
+        }
 
-                $set = "date = '$date'"
-            }
+        if ($Amount -ne 0) {
+            $sets += "amount = $Amount"
+        }
 
-            "l" {
-                do {
-                    $debit_id = Select-IIMitaAccount
-                } while ($debit_id -eq $null)
+        if ($Note -ne $null) {
+            $sets += "note = '$Note'"
+        }
 
-                $set = "debit_id = '$debit_id'"
-            }
+        if ($Group -ne $null) {
+            $sets += "group_name = '$Group'"
+        }
 
-            "r" {
-                do {
-                    $credit_id = Select-IIMitaAccount
-                } while ($credit_id -eq $null)
+        if ($sets.Length -eq 0) {
+            $cmd_arr = "d", "l", "r", "a", "n", "g"
 
-                $set = "credit_id = '$credit_id'"
-            }
+            do {
+                $cmd = Read-Host -Prompt "(d)ate, (l)eft, (r)ight, (a)mount, (n)ote, (g)roup"
+                $cmd = $cmd.Trim()
+            } while (-not $cmd_arr.Contains($cmd))
 
-            "a" {
-                do {
-                    $amount_str = Read-Host -Prompt "金額"
-                    $amount_str = $amount_str.Trim()
-                } while ($amount_str -notmatch "^\d+$")
+            switch ($cmd) {
+                "q" {
+                    return
+                }
 
-                $set = "amount = $amount_str"
-            }
+                "d" {
+                    do {
+                        $date = Read-IIMitaDate -Prompt "日付"
+                    } while ($date -eq $null)
 
-            "n" {
-                $note = Read-Host -Prompt "摘要"
+                    $sets += "date = '$date'"
+                }
 
-                $set = "note = '$note'"
-            }
+                "l" {
+                    do {
+                        $debit_id = Select-IIMitaAccount
+                    } while ($debit_id -eq $null)
 
-            "g" {
-                $group = Read-Host -Prompt "グループ名"
+                    $sets += "debit_id = '$debit_id'"
+                }
 
-                $set = "group_name = '$group'"
+                "r" {
+                    do {
+                        $credit_id = Select-IIMitaAccount
+                    } while ($credit_id -eq $null)
+
+                    $sets += "credit_id = '$credit_id'"
+                }
+
+                "a" {
+                    do {
+                        $amount_str = Read-Host -Prompt "金額"
+                        $amount_str = $amount_str.Trim()
+                    } while ($amount_str -notmatch "^\d+$")
+
+                    $sets += "amount = $amount_str"
+                }
+
+                "n" {
+                    $note = Read-Host -Prompt "摘要"
+
+                    $sets += "note = '$note'"
+                }
+
+                "g" {
+                    $group = Read-Host -Prompt "グループ名"
+
+                    $sets += "group_name = '$group'"
+                }
             }
         }
     }
 
     process {
-        if ($_.id -eq $null -or $_.id -notmatch "^\d+$") {
+        if ($Id -ne 0) {
+            $edit_id = $Id
+        } elseif ($_.id -ne $null -and $_.id -match "^\d+$") {
+            $edit_id = $_.id
+        } else {
             return
         }
 
-        $command.CommandText = "UPDATE transactions SET $set WHERE id = $($_.id)"
+        $set = $sets -join ", "
+
+        $command.CommandText = "UPDATE transactions SET $set WHERE id = $edit_id"
         $command.ExecuteNonQuery() | Out-Null
     }
 

@@ -1,0 +1,156 @@
+{
+    "id": 0,
+    "type": 0,
+    "name": "root",
+    "search_words": "",
+    "children": [
+        {
+            "id": 999,
+            "type": 0,
+            "name": "Unknown",
+            "search_words": "",
+            "children": []
+        },
+
+        {
+            "id": 1,
+            "type": 1,
+            "name": "資産",
+            "search_words": "",
+            "children": [
+                {
+                    "id": 101,
+                    "name": "現金",
+                    "search_words": "genkin cash",
+                    "children": []
+                },
+                {
+                    "id": 110,
+                    "name": "銀行",
+                    "search_words": "",
+                    "children": [
+                        {
+                            "id": 111,
+                            "name": "A銀行",
+                            "search_words": "ooitaginkou daigin",
+                            "children": []
+                        },
+                        {
+                            "id": 112,
+                            "name": "B銀行",
+                            "search_words": "rakutenginkou",
+                            "children": []
+                        },
+                    ]
+                },
+                {
+                    "id": 141,
+                    "name": "未収入金",
+                    "search_words": "misyuunyuukin",
+                    "need_group": true,
+                    "children": []
+                },
+            ]
+        },
+
+        {
+            "id": 2,
+            "type": 2,
+            "name": "負債",
+            "search_words": "",
+            "children": [
+                {
+                    "id": 200,
+                    "name": "クレジットカード",
+                    "search_words": "",
+                    "children": [
+                        {
+                            "id": 201,
+                            "name": "Aカード",
+                            "search_words": "rakuten card",
+                            "need_group": true,
+                            "children": []
+                        },
+                        {
+                            "id": 202,
+                            "name": "Bカード",
+                            "search_words": "",
+                            "need_group": true,
+                            "children": []
+                        },
+                    ]
+                },
+                {
+                    "id": 211,
+                    "name": "借入",
+                    "search_words": "",
+                    "children": []
+                },
+            ]
+        },
+
+        {
+            "id": 3,
+            "type": 3,
+            "name": "収入",
+            "search_words": "",
+            "children": [
+                {
+                    "id": 301,
+                    "name": "給与",
+                    "search_words": "kyuuyo kyuuryo",
+                    "children": []
+                },
+                {
+                    "id": 302,
+                    "name": "その他の収入",
+                    "search_words": "sonotanosyuunyuu",
+                    "children": []
+                },
+            ]
+        },
+
+        {
+            "id": 4,
+            "type": 4,
+            "name": "費用",
+            "search_words": "",
+            "children": [
+                {
+                    "id": 401,
+                    "name": "家賃",
+                    "search_words": "yatin",
+                    "children": []
+                },
+                {
+                    "id": 420,
+                    "name": "税金",
+                    "search_words": "",
+                    "children": [
+                        {
+                            "id": 423,
+                            "name": "住民税",
+                            "search_words": "juuminzei",
+                            "children": []
+                        },
+                    ]
+                },
+            ]
+        },
+
+        {
+            "id": 5,
+            "type": 5,
+            "name": "資本",
+            "search_words": "",
+            "children": [
+                {
+                    "id": 501,
+                    "name": "開始残高",
+                    "search_words": "kaisizandaka",
+                    "children": []
+                },
+            ]
+        }
+    ]
+}

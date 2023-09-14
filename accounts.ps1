@@ -33,7 +33,7 @@ function Set-IIMitaAccountParent {
         $Account | Add-Member -MemberType NoteProperty -Name "type" -Value $Parent.type
     }
 
-    if ($Account.need_group -ne $null) {
+    if ($Account.need_group -ne $null -and $Account.need_group -eq $true) {
         $NeedGroup.Add($Account)
     }
 

@@ -1,1 +1,2 @@
-lib
+lib/
+tests/data/test_transactions.sqlite3
