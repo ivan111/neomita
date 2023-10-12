@@ -83,6 +83,16 @@ function Out-IIMitaBS {
     Get-IIMitaTransactions -All | Set-IIMitaAccountAmount
 
     $global:IIMitaAccount.root.children[@(1, 2)] | Write-IIMitaAccountAmount
+
+    $assets = $global:IIMitaAccount.table["1"]
+    $liabilities = $global:IIMitaAccount.table["2"]
+
+    $assets_amount = $assets.debit_amount - $assets.credit_amount
+    $liabilities_amount = $liabilities.debit_amount - $liabilities.credit_amount
+    $amount = $assets_amount + $liabilities_amount
+
+    $line = "純資産 {0:N0}" -f $amount
+    Write-Output $line
 }
 
 <#
@@ -161,6 +171,16 @@ function Out-IIMitaPL {
     Get-IIMitaTransactions -Month $date | Set-IIMitaAccountAmount
 
     $global:IIMitaAccount.root.children[@(3, 4)] | Write-IIMitaAccountAmount
+
+    $income = $global:IIMitaAccount.table["3"]
+    $expense = $global:IIMitaAccount.table["4"]
+
+    $income_amount = $income.credit_amount - $income.debit_amount
+    $expense_amount = $expense.credit_amount - $expense.debit_amount
+    $amount = $income_amount + $expense_amount
+
+    $line = "収支 {0:N0}" -f $amount
+    Write-Output $line
 }
 
 
